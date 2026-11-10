@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Linear Atomic Density Calculator</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--tx:#1b2330;--mut:#5d6878;--bd:#dde2ea;--ac:#e8590c;--ac2:#1c7ed6;--atom:#74a7e6;--edge:#8a94a6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b222c;--tx:#e8ecf2;--mut:#9aa6b8;--bd:#2c3644;--ac:#ff922b;--ac2:#74c0fc;--atom:#4d7fc0;--edge:#6b778c}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1b222c;--tx:#e8ecf2;--mut:#9aa6b8;--bd:#2c3644;--ac:#ff922b;--ac2:#74c0fc;--atom:#4d7fc0;--edge:#6b778c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:22px;margin:0 0 2px}p.sub{margin:0 0 16px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:14px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 10px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+select,input[type=number],input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+.row{display:flex;gap:8px}.row>div{flex:1}
+.pre{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+button{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--ac)}
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.stat{border:1px solid var(--bd);border-radius:10px;padding:10px;background:var(--bg)}
+.stat b{display:block;font-size:20px}.stat span{font-size:12px;color:var(--mut)}
+.stat.big{border-color:var(--ac)}.stat.big b{color:var(--ac)}
+.steps{font-size:14px;margin:0;padding-left:18px}.steps li{margin:3px 0}
+code{background:var(--bg);padding:1px 5px;border-radius:5px;font-size:13px}
+canvas{width:100%;height:380px;display:block;border-radius:10px;background:var(--bg);touch-action:none;cursor:grab}
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:8px}
+.leg i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.err{color:#e03131;font-size:13px;margin-top:8px;min-height:18px}
+input[type=range]{width:100%}
+</style></head><body><div class="wrap">
+<h1>Linear Atomic Density</h1>
+<p class="sub">Atoms per unit length along a crystallographic direction (SC, FCC, BCC, HCP).</p>
+<div class="grid">
+<div>
+<div class="card"><h2>Inputs</h2>
+<label>Crystal structure</label>
+<select id="cs"><option value="FCC">FCC</option><option value="BCC">BCC</option><option value="HCP">HCP</option><option value="SC">Simple cubic</option></select>
+<div class="row"><div><label>Atomic radius R</label><input type="number" id="R" value="0.1278" step="any" min="0"></div>
+<div><label>Unit</label><input type="text" id="un" value="nm"></div></div>
+<div id="caBox" style="display:none"><label>c/a ratio (ideal HCP = 1.633)</label><input type="number" id="ca" value="1.633" step="any" min="0.1"></div>
+<label id="dl">Direction [u v w]</label>
+<div class="row"><div><input type="number" id="u" value="1" step="1"></div><div><input type="number" id="v" value="1" step="1"></div>
+<div id="tBox" style="display:none"><input type="number" id="t" disabled></div><div><input type="number" id="w" value="0" step="1"></div></div>
+<div class="pre" id="pre"></div>
+<div class="err" id="err"></div></div>
+<div class="card" style="margin-top:14px"><h2>Atom size in view</h2>
+<input type="range" id="sz" min="10" max="100" value="35"><div style="font-size:12px;color:var(--mut)">100% = true touching spheres. Smaller makes the line easier to see.</div></div>
+</div>
+<div>
+<div class="card"><h2>Result</h2><div class="res" id="res"></div><ol class="steps" id="steps"></ol></div>
+<div class="card" style="margin-top:14px"><h2>Visualizer (drag to rotate)</h2><canvas id="cv"></canvas>
+<div class="leg"><span><i style="background:var(--ac)"></i>Atoms counted on the direction</span><span><i style="border:2px dashed var(--ac)"></i>Next atom (starts next period)</span><span><i style="background:var(--atom);opacity:.6"></i>Other atoms</span></div></div>
+<div class="card" style="margin-top:14px"><h2>Repeat unit per atom</h2><div id="rep"></div><div id="repn" style="font-size:14px;margin-top:6px"></div><div style="font-size:12px;color:var(--mut);margin-top:4px">Atoms are drawn at true scale along the direction. The shaded block is one repeat unit.</div></div>
+</div></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const gcd=(a,b)=>b?gcd(b,a%b):Math.abs(a);
+const PRES={cubic:[[1,0,0],[1,1,0],[1,1,1]],HCP:[[2,-1,-1,0],[1,0,-1,0],[0,0,0,1]]};
+let yaw=-0.7,pitch=0.45,S=null;
+function pre(){const h=$('cs').value==='HCP';$('pre').innerHTML='';
+ (h?PRES.HCP:PRES.cubic).forEach(d=>{const b=document.createElement('button');
+  b.textContent=h?'['+d.map(x=>x<0?'\u0305'+(-x):x).join('')+']':'['+d.join('')+']';
+  b.onclick=()=>{$('u').value=d[0];$('v').value=d[1];$('w').value=h?d[3]:d[2];run()};$('pre').appendChild(b)})}
+function setMode(){const h=$('cs').value==='HCP';$('caBox').style.display=h?'block':'none';$('tBox').style.display=h?'block':'none';
+ $('dl').textContent=h?'Direction [u v t w] (t = \u2212(u+v), auto)':'Direction [u v w]';
+ if(h){$('u').value=2;$('v').value=-1;$('w').value=0}else{$('u').value=1;$('v').value=1;$('w').value=0}
+ pre();run()}
+function run(){
+ const cs=$('cs').value,R=parseFloat($('R').value),un=$('un').value||'units',err=$('err');err.textContent='';
+ let u=Math.round($('u').value),v=Math.round($('v').value),w=Math.round($('w').value);
+ if(!(R>0)){err.textContent='Enter a positive atomic radius.';return}
+ if(!u&&!v&&!w){err.textContent='Direction cannot be [000].';return}
+ const hex=cs==='HCP';let a,c=0,A,basis,P,dir;
+ if(hex){const t=-(u+v);$('t').value=t;a=2*R;c=a*(parseFloat($('ca').value)||1.633);
+  let U=u-t,V=v-t,W=w;const g=gcd(gcd(U,V),W)||1;U/=g;V/=g;W/=g;P=[U,V,W];dir=[U,V,W];
+  A=[[a,0,0],[-a/2,a*Math.sqrt(3)/2,0],[0,0,c]];basis=[[0,0,0],[2/3,1/3,.5]]}
+ else{const g=gcd(gcd(u,v),w)||1;u/=g;v/=g;w/=g;dir=[u,v,w];
+  a=cs==='FCC'?2*Math.SQRT2*R:cs==='BCC'?4*R/Math.sqrt(3):2*R;
+  let t=1;if(cs==='FCC'&&((u+v+w)%2===0))t=.5;
+  if(cs==='BCC'&&[u,v,w].every(x=>Math.abs(x)%2===1))t=.5;
+  P=[u*t,v*t,w*t];A=[[a,0,0],[0,a,0],[0,0,a]];
+  basis=cs==='FCC'?[[0,0,0],[.5,.5,0],[.5,0,.5],[0,.5,.5]]:cs==='BCC'?[[0,0,0],[.5,.5,.5]]:[[0,0,0]]}
+ const cart=f=>[0,1,2].map(k=>f[0]*A[0][k]+f[1]*A[1][k]+f[2]*A[2][k]);
+ const pv=cart(P),L=Math.hypot(...pv);
+ const lo=P.map(x=>Math.floor(Math.min(0,x)+1e-9)),hi=P.map((x,i)=>Math.max(Math.ceil(Math.max(0,x)-1e-9),lo[i]+1));
+ const atoms=[],P2=P[0]*P[0]+P[1]*P[1]+P[2]*P[2];let cnt=0;
+ for(let i=lo[0]-1;i<=hi[0];i++)for(let j=lo[1]-1;j<=hi[1];j++)for(let k=lo[2]-1;k<=hi[2];k++)for(const b of basis){
+  const f=[i+b[0],j+b[1],k+b[2]];if(f.some((x,q)=>x<lo[q]-1e-9||x>hi[q]+1e-9))continue;
+  const cr=[f[1]*P[2]-f[2]*P[1],f[2]*P[0]-f[0]*P[2],f[0]*P[1]-f[1]*P[0]];
+  const on=cr.every(x=>Math.abs(x)<1e-9);let s=(f[0]*P[0]+f[1]*P[1]+f[2]*P[2])/P2;
+  const cnted=on&&s>-1e-9&&s<1-1e-9,nxt=on&&Math.abs(s-1)<1e-9;if(cnted)cnt++;
+  atoms.push({p:cart(f),cnted,nxt,s})}
+ const LD=cnt/L,fmt=x=>x>=1e4||x<1e-3?x.toExponential(3):(+x.toPrecision(4)).toString();
+ const dstr=hex?'['+$('u').value+' '+$('v').value+' '+(-(u+v))+' '+w+']':'['+$('u').value+' '+$('v').value+' '+$('w').value+']';
+ $('res').innerHTML=`<div class="stat"><b>${fmt(a)}</b><span>a (${un})${hex?', c = '+fmt(c):''}</span></div>
+ <div class="stat"><b>${fmt(L)}</b><span>Repeat length (${un})</span></div>
+ <div class="stat"><b>${cnt}</b><span>Atoms per repeat</span></div>
+ <div class="stat big"><b>${fmt(LD)}</b><span>LD (atoms/${un})</span></div>
+ <div class="stat"><b>${fmt(LD*R)}</b><span>LD \u00d7 R (dimensionless)</span></div>`;
+ const aform={FCC:'a = 2\u221a2\u00b7R',BCC:'a = 4R/\u221a3',SC:'a = 2R',HCP:'a = 2R, c = (c/a)\u00b7a'}[cs];
+ $('steps').innerHTML=`<li>Lattice parameter: <code>${aform}</code> = ${fmt(a)} ${un}</li>
+ <li>Shortest repeat vector along ${dstr}${hex?' (as [UVW] = ['+dir.join(' ')+'])':''}: ${hex?'':'<code>'+P.map(x=>+x.toFixed(2)).join(', ')+'</code> in units of a; '}length = ${fmt(L)} ${un}</li>
+ <li>Atoms centred on the line, per repeat = ${cnt}</li>
+ <li><code>LD = ${cnt} / ${fmt(L)}</code> = <b>${fmt(LD)} atoms/${un}</b>${un==='nm'?' = '+fmt(LD*1e9)+' atoms/m':''}</li>`;
+ S={atoms,A,lo,hi,cart,pv,R,L,cnt,un};draw();rep()}
+function draw(){if(!S)return;
+ const cv=$('cv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+ const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+ const cs=getComputedStyle(document.documentElement),ac=cs.getPropertyValue('--ac').trim(),at=cs.getPropertyValue('--atom').trim(),ed=cs.getPropertyValue('--edge').trim();
+ const {atoms,lo,hi,cart,pv,R}=S;
+ const ctr=cart(lo.map((x,i)=>(x+hi[i])/2));
+ const cr=[];for(let m=0;m<8;m++)cr.push([m&1?hi[0]:lo[0],m&2?hi[1]:lo[1],m&4?hi[2]:lo[2]]);
+ const cc=cr.map(cart);const ext=Math.max(...cc.map(p=>Math.hypot(p[0]-ctr[0],p[1]-ctr[1],p[2]-ctr[2])));
+ const sc=.4*Math.min(W,H)/ext,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ const pr=p=>{const x=p[0]-ctr[0],y=p[1]-ctr[1],z=p[2]-ctr[2];const x1=x*cy-y*sy,y1=x*sy+y*cy;
+  return{x:W/2+x1*sc,y:H/2-(z*cp-y1*sp)*sc,d:y1*cp+z*sp}};
+ g.strokeStyle=ed;g.lineWidth=1;g.setLineDash([4,3]);
+ [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]].forEach(([i,j])=>{const p=pr(cc[i]),q=pr(cc[j]);g.beginPath();g.moveTo(p.x,p.y);g.lineTo(q.x,q.y);g.stroke()});
+ g.setLineDash([]);
+ const rad=R*sc*($('sz').value/100);
+ const pj=atoms.map(a=>({...a,...pr(a.p)})).sort((a,b)=>b.d-a.d);
+ g.globalAlpha=.55;g.fillStyle=at;
+ pj.filter(a=>!a.cnted&&!a.nxt).forEach(a=>{g.beginPath();g.arc(a.x,a.y,rad,0,7);g.fill()});
+ g.globalAlpha=1;
+ const o=pr([0,0,0].map((_,k)=>0)),e=pr(pv),O=pr(cart([0,0,0])),E=pr(pv);
+ g.strokeStyle=ac;g.lineWidth=3;g.beginPath();g.moveTo(O.x,O.y);g.lineTo(E.x,E.y);g.stroke();
+ pj.filter(a=>a.cnted||a.nxt).forEach(a=>{g.beginPath();g.arc(a.x,a.y,rad,0,7);
+  if(a.cnted){g.fillStyle=ac;g.fill()}else{g.setLineDash([4,3]);g.lineWidth=2;g.strokeStyle=ac;g.stroke();g.setLineDash([])}});
+ g.fillStyle=cs.getPropertyValue('--tx');g.font='12px system-ui';g.fillText('origin',O.x+rad+3,O.y-rad)}
+function rep(){if(!S)return;const {L,cnt,un,R,atoms}=S,fm=x=>+x.toPrecision(4);
+ const el=$('rep'),W=Math.max(320,el.clientWidth||600),k=W/(4*L),r=R*k,cy=34+r,H=cy+r+56;
+ const X=s=>(s+.5)*L*k,sv=atoms.filter(a=>a.cnted).map(a=>a.s);
+ let o=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">`;
+ o+=`<line x1="0" x2="${W}" y1="${cy}" y2="${cy}" stroke="var(--edge)" stroke-dasharray="4 3"/>`;
+ o+=`<rect x="${X(0)}" y="24" width="${L*k}" height="${cy+r+10-24}" fill="var(--ac)" opacity=".13" rx="6"/>`;
+ o+=`<text x="${X(.5)}" y="16" text-anchor="middle" font-size="13" fill="var(--ac)" font-weight="600">${cnt} atom${cnt>1?'s':''} per repeat unit</text>`;
+ for(let n=0;n<=3;n++)sv.forEach(s=>{const x=s+n;if(x>3+1e-9)return;
+  if(x<1-1e-9)o+=`<circle cx="${X(x)}" cy="${cy}" r="${r}" fill="var(--ac)"/>`;
+  else if(Math.abs(x-1)<1e-9)o+=`<circle cx="${X(x)}" cy="${cy}" r="${r}" fill="none" stroke="var(--ac)" stroke-width="2" stroke-dasharray="4 3"/>`;
+  else o+=`<circle cx="${X(x)}" cy="${cy}" r="${r}" fill="var(--atom)" opacity=".6"/>`});
+ const by=cy+r+26;
+ o+=`<path d="M${X(0)} ${by-6}V${by+6}M${X(0)} ${by}H${X(1)}M${X(1)} ${by-6}V${by+6}" stroke="var(--tx)" fill="none"/>`;
+ o+=`<text x="${X(.5)}" y="${by+22}" text-anchor="middle" font-size="13" fill="var(--tx)">L = ${fm(L)} ${un}</text></svg>`;
+ el.innerHTML=o;
+ $('repn').innerHTML=`Length per atom = L / ${cnt} = <b>${fm(L/cnt)} ${un}</b> &rarr; LD = ${cnt} / ${fm(L)} = <b>${fm(cnt/L)} atoms/${un}</b>`}
+let drag=null;const cv=$('cv');
+cv.onpointerdown=e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)};
+cv.onpointerup=()=>drag=null;
+cv.onpointermove=e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.01;pitch=Math.max(-1.5,Math.min(1.5,pitch+(e.clientY-drag[1])*.01));drag=[e.clientX,e.clientY];draw()};
+['R','un','ca','u','v','w'].forEach(i=>$(i).oninput=run);$('sz').oninput=draw;$('cs').onchange=setMode;
+window.onresize=()=>{draw();rep()};setMode();
+</script></body></html>
